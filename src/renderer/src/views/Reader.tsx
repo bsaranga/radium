@@ -169,6 +169,26 @@ export function Reader({
           await window.api.deleteHighlight(h.id);
           refreshHighlights();
         }}
+        onNavigate={(url) => {
+          if (!url.startsWith('reader://')) return;
+          if (book.format === 'pdf') {
+            const m = url.match(/^reader:\/\/page\/(\d+)/);
+            if (m) {
+              readerRef.current?.navigate({
+                kind: 'pdf-page',
+                page: parseInt(m[1], 10),
+              });
+            }
+          } else {
+            const m = url.match(/^reader:\/\/href\/(.+)/);
+            if (m) {
+              readerRef.current?.navigate({
+                kind: 'epub-href',
+                href: decodeURIComponent(m[1]),
+              });
+            }
+          }
+        }}
         onOpenSettings={onOpenSettings}
       />
     </div>

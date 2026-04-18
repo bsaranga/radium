@@ -58,6 +58,10 @@ export const EpubReader = forwardRef<ReaderHandle, Props>(function EpubReader(
         };
         return captureEpubRegion(iframe, iframeRect, localSelection);
       },
+      navigate: (target) => {
+        if (target.kind !== 'epub-href') return;
+        renditionRef.current?.display(target.href);
+      },
     }),
     [],
   );

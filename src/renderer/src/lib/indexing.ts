@@ -57,7 +57,7 @@ async function extractEpubSources(filePath: string): Promise<RawChunk[]> {
         const body = doc?.body ?? doc?.documentElement;
         const text = body?.textContent ?? '';
         item.unload();
-        const sourceLabel = item.idref || item.href || 'section';
+        const sourceLabel = item.href || item.idref || 'section';
         for (const chunk of chunkText(text)) {
           out.push({ sourceLabel, text: chunk });
         }

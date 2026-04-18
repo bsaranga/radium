@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
@@ -30,6 +30,7 @@ type Props = {
   highlights: Highlight[];
   onAskAboutHighlight: (h: Highlight) => void;
   onDeleteHighlight: (h: Highlight) => void;
+  onNavigate: (url: string) => void;
   onOpenSettings: () => void;
 };
 
@@ -107,6 +108,7 @@ export function ChatPanel({
   highlights,
   onAskAboutHighlight,
   onDeleteHighlight,
+  onNavigate,
   onOpenSettings,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -379,13 +381,23 @@ export function ChatPanel({
           </div>
         )}
         {messages.map((m) => (
-          <Message key={m.id} role={m.role} content={m.content} />
+          <Message
+            key={m.id}
+            role={m.role}
+            content={m.content}
+            bookFormat={book.format}
+            linkifyCitations={scope === 'book'}
+            onNavigate={onNavigate}
+          />
         ))}
         {streaming && (
           <Message
             role="assistant"
             content={streaming.text || '…'}
             streaming
+            bookFormat={book.format}
+            linkifyCitations={scope === 'book'}
+            onNavigate={onNavigate}
           />
         )}
         {error && <div className="chat-error">{error}</div>}
@@ -559,16 +571,53 @@ function normalizeMathDelimiters(src: string): string {
     .join('');
 }
 
+function linkifyCitations(
+  src: string,
+  format: 'pdf' | 'epub',
+): string {
+  if (format === 'pdf') {
+    // Match any "Page N" / "page N" / "pp. N" / "p. N", whether or not
+    // wrapped in parens or part of a range. Each number gets its own link.
+    return src.replace(
+      /\b(?:Pages?|pp?\.)\s*(\d+)(?:\s*[-–—,]\s*(\d+))?/gi,
+      (match, a: string, b?: string) => {
+        const first = `[${match.replace(/\s*[-–—,]\s*\d+$/, '').trim()}](reader://page/${a})`;
+        if (!b) return first;
+        // Rebuild range: keep first chunk linked, link the trailing number.
+        const sepMatch = match.match(/\s*([-–—,])\s*\d+$/);
+        const sep = sepMatch ? sepMatch[0].replace(/\d+$/, '') : '–';
+        return `${first}${sep}[${b}](reader://page/${b})`;
+      },
+    );
+  }
+  return src.replace(/\(§\s*([^)]+?)\s*\)/g, (_, raw) => {
+    const label = String(raw).trim();
+    return `([§ ${label}](reader://href/${encodeURIComponent(label)}))`;
+  });
+}
+
 function Message({
   role,
   content,
   streaming,
+  bookFormat,
+  linkifyCitations: shouldLinkify,
+  onNavigate,
 }: {
   role: 'user' | 'assistant';
   content: string;
   streaming?: boolean;
+  bookFormat: 'pdf' | 'epub';
+  linkifyCitations: boolean;
+  onNavigate: (url: string) => void;
 }) {
   const copy = () => navigator.clipboard.writeText(content);
+
+  let rendered = normalizeMathDelimiters(content);
+  if (role === 'assistant' && shouldLinkify) {
+    rendered = linkifyCitations(rendered, bookFormat);
+  }
+
   return (
     <div className={`msg msg-${role}`}>
       <div className="msg-role">
@@ -586,8 +635,31 @@ function Message({
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[rehypeHighlight, rehypeKatex]}
+            urlTransform={(url) =>
+              url.startsWith('reader://') ? url : defaultUrlTransform(url)
+            }
+            components={{
+              a: ({ href, children, ...rest }) => {
+                if (href?.startsWith('reader://')) {
+                  return (
+                    <button
+                      type="button"
+                      className="citation-link"
+                      onClick={() => onNavigate(href)}
+                    >
+                      {children}
+                    </button>
+                  );
+                }
+                return (
+                  <a href={href} {...rest}>
+                    {children}
+                  </a>
+                );
+              },
+            }}
           >
-            {normalizeMathDelimiters(content)}
+            {rendered}
           </ReactMarkdown>
         )}
       </div>

@@ -156,6 +156,18 @@ Goal: cover pages, title pages, scanned PDFs, and image-only EPUB sections shoul
 
 ---
 
+## Phase 5e — Navigable citations in book-mode chat
+Goal: turn the AI's location citations into actual navigation.
+
+- When a whole-book response cites a location — e.g. `(Page 42)` for PDFs or `(§ <source>)` for EPUBs — render it as a link rather than plain text.
+- Clicking the link moves the left pane to that location: PDF page number, EPUB spine href.
+- System prompt enforces the two exact citation formats so the renderer can reliably detect and rewrite them.
+- Citations in page-scope chat are left as plain text (they already point to the current page).
+
+**Exit criteria:** ask a whole-book question that draws on multiple chapters; clicking any cited page/section in the answer jumps the reader to that location without leaving the chat.
+
+---
+
 ## Phase 6 — Study Features
 Goal: turn reading into retained knowledge.
 

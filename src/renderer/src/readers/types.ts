@@ -1,8 +1,13 @@
 import type { Rect } from '../lib/capture';
 
+export type NavTarget =
+  | { kind: 'pdf-page'; page: number }
+  | { kind: 'epub-href'; href: string };
+
 export type ReaderHandle = {
   capturePage: () => Promise<string | null>;
   captureRegion: (displayRect: DOMRect, selection: Rect) => Promise<string | null>;
+  navigate: (target: NavTarget) => void;
 };
 
 export type SelectionEvent = {

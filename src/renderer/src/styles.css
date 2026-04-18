@@ -626,6 +626,24 @@ button.primary {
   color: inherit;
 }
 
+.citation-link {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.5;
+  vertical-align: baseline;
+}
+
+.citation-link:hover {
+  background: var(--accent);
+  color: white;
+}
+
 .icon-btn {
   background: none;
   border: none;

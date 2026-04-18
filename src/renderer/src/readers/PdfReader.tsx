@@ -68,8 +68,15 @@ export const PdfReader = forwardRef<ReaderHandle, Props>(function PdfReader(
         const c = canvasRef.current;
         return c ? capturePdfRegion(c, displayRect, selection) : null;
       },
+      navigate: (target) => {
+        if (target.kind !== 'pdf-page') return;
+        setPage(() => {
+          const n = Math.max(1, Math.min(numPages || target.page, target.page));
+          return n;
+        });
+      },
     }),
-    [],
+    [numPages],
   );
 
   useEffect(() => {
