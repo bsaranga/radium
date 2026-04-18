@@ -68,6 +68,18 @@ Goal: the AI understands what's visually on the page, not just the extracted tex
 
 ---
 
+## Phase 3b — Reader Toolbar & Selection-Gated Vision UX
+Goal: surface vision tools where the user's hands are (on the page, not in the chat), and reduce chat-panel clutter.
+
+- Add a vertical toolbar on the left edge of the reader pane. First affordance: **Select region** (drag-to-crop).
+- Remove the "⬚ Select region" button and the "Include page image" toggle from the chat panel.
+- Vision quick prompts ("Explain selection", "Extract this table", "Describe this figure", …) are hidden by default and only appear once a region/page attachment is pending.
+- Toolbar is extensible — future tools (highlight, note, zoom, fit-to-width) slot into the same rail.
+
+**Exit criteria:** with no attachment, the chat panel shows only text-oriented quick actions. Clicking the toolbar's region tool, dragging a rect, and releasing reveals the vision prompts inline.
+
+---
+
 ## Phase 4 — Selection & Deep Interaction
 Goal: make the assistant feel native to reading.
 

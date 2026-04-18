@@ -34,6 +34,11 @@ Guidelines:
 - Do not repeat the page text back unless asked.
 - Never invent page numbers or citations.
 
+Images:
+- When the user attaches a page or region image, treat it as authoritative for any diagrams, figures, tables, or equations that don't round-trip through extracted text. Read what's actually drawn.
+- For tables, transcribe to GitHub-flavored markdown tables when asked.
+- For diagrams, describe the structure (nodes, edges, flow direction) and what it conveys, not just its appearance.
+
 Math formatting:
 - The user's chat view renders LaTeX via KaTeX. When math is warranted, you MUST use dollar-sign delimiters: \`$…$\` for inline, \`$$…$$\` for display.
 - Do NOT use \`\\( … \\)\` or \`\\[ … \\]\` — those do not render.
@@ -56,18 +61,36 @@ function detectMathLikely(text: string): boolean {
   return hits >= 2;
 }
 
-function buildUserContent(req: ChatRequest): string {
+function buildUserText(req: ChatRequest): string {
   const mathLikely = detectMathLikely(req.pageText);
+  const imageNote = req.images?.length
+    ? `\nAttached images: ${req.images
+        .map((i) => (i.kind === 'region' ? 'selected region' : 'full page'))
+        .join(', ')}.`
+    : '';
   return `<book_context>
 Title: ${req.bookTitle}
 Current location: ${req.pageLabel}
-math_likely: ${mathLikely}
+math_likely: ${mathLikely}${imageNote}
 
 Page text:
 ${req.pageText.trim() || '(no extractable text on this page)'}
 </book_context>
 
 ${req.userMessage}`;
+}
+
+function buildUserMessage(req: ChatRequest) {
+  const text = buildUserText(req);
+  if (!req.images?.length) return { role: 'user' as const, content: text };
+  const parts: any[] = [{ type: 'text', text }];
+  for (const img of req.images) {
+    parts.push({
+      type: 'image_url',
+      image_url: { url: img.dataUrl, detail: 'high' },
+    });
+  }
+  return { role: 'user' as const, content: parts };
 }
 
 export async function runChat(
@@ -121,8 +144,8 @@ export async function runChat(
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         ...historyMessages,
-        { role: 'user', content: buildUserContent(req) },
-      ],
+        buildUserMessage(req),
+      ] as any,
     });
 
     for await (const chunk of stream) {

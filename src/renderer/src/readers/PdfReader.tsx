@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { Book, PageContext } from '../../../shared/types';
 import { isTypingTarget } from '../lib/dom';
+import { capturePdfCanvas, capturePdfRegion } from '../lib/capture';
+import type { ReaderHandle } from './types';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
@@ -11,7 +19,10 @@ type Props = {
   onPageChange?: (ctx: PageContext) => void;
 };
 
-export function PdfReader({ book, onPageChange }: Props) {
+export const PdfReader = forwardRef<ReaderHandle, Props>(function PdfReader(
+  { book, onPageChange },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [page, setPage] = useState<number>(() => {
@@ -20,6 +31,21 @@ export function PdfReader({ book, onPageChange }: Props) {
   });
   const [numPages, setNumPages] = useState(0);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      capturePage: async () => {
+        const c = canvasRef.current;
+        return c ? capturePdfCanvas(c) : null;
+      },
+      captureRegion: async (displayRect, selection) => {
+        const c = canvasRef.current;
+        return c ? capturePdfRegion(c, displayRect, selection) : null;
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -137,4 +163,4 @@ export function PdfReader({ book, onPageChange }: Props) {
       </div>
     </>
   );
-}
+});

@@ -6,6 +6,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import type {
   Book,
+  ChatImage,
   ChatMessage,
   PageContext,
 } from '../../../shared/types';
@@ -13,10 +14,12 @@ import type {
 type Props = {
   book: Book;
   pageContext: PageContext | null;
+  pendingImage: ChatImage | null;
+  onClearPendingImage: () => void;
   onOpenSettings: () => void;
 };
 
-const QUICK_ACTIONS = [
+const TEXT_ACTIONS = [
   { label: 'Explain this page', prompt: 'Explain the key ideas on this page.' },
   { label: 'Summarize', prompt: 'Summarize this page in a few bullet points.' },
   {
@@ -24,13 +27,38 @@ const QUICK_ACTIONS = [
     prompt:
       'List and define the key technical terms introduced on this page.',
   },
+  { label: 'ELI5', prompt: 'Explain this page like I am five.' },
+];
+
+const VISION_ACTIONS = [
   {
-    label: 'ELI5',
-    prompt: 'Explain this page like I am five.',
+    label: 'Explain selection',
+    prompt:
+      'Explain the attached selection: what it depicts, the components, and what the reader should take away.',
+  },
+  {
+    label: 'Extract table',
+    prompt:
+      'Transcribe the table in the attached selection to a GitHub-flavored markdown table. Preserve column order and values exactly.',
+  },
+  {
+    label: 'Describe figure',
+    prompt: 'Describe the figure in the attached selection in detail.',
+  },
+  {
+    label: 'Explain equation',
+    prompt:
+      'Explain the equation in the attached selection: name the quantities, describe what it says, and why it matters in context.',
   },
 ];
 
-export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
+export function ChatPanel({
+  book,
+  pageContext,
+  pendingImage,
+  onClearPendingImage,
+  onOpenSettings,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState<{
@@ -89,6 +117,8 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
       if (!content || !pageContext || streaming) return;
       setError(null);
 
+      const images: ChatImage[] = pendingImage ? [pendingImage] : [];
+
       const requestId = crypto.randomUUID();
       const optimistic: ChatMessage = {
         id: `temp-${requestId}`,
@@ -101,6 +131,7 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
       setMessages((m) => [...m, optimistic]);
       setStreaming({ requestId, text: '' });
       setInput('');
+      onClearPendingImage();
 
       await window.api.sendChat({
         requestId,
@@ -110,9 +141,10 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
         pageLabel: pageContext.pageLabel,
         pageText: pageContext.text,
         userMessage: content,
+        images: images.length ? images : undefined,
       });
     },
-    [book, pageContext, streaming],
+    [book, pageContext, streaming, pendingImage, onClearPendingImage],
   );
 
   const clear = async () => {
@@ -128,6 +160,8 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
       send(input);
     }
   };
+
+  const disabled = !pageContext || !!streaming;
 
   return (
     <div className="chat-panel">
@@ -157,7 +191,8 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
       <div className="chat-scroll" ref={scrollerRef}>
         {messages.length === 0 && !streaming && (
           <div className="chat-empty">
-            Ask about what you're reading. The AI sees the current page text.
+            Ask about what you're reading. Attach the page or a selected region
+            to ask about diagrams and tables.
           </div>
         )}
         {messages.map((m) => (
@@ -174,16 +209,44 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
       </div>
 
       <div className="quick-actions">
-        {QUICK_ACTIONS.map((a) => (
-          <button
-            key={a.label}
-            onClick={() => send(a.prompt)}
-            disabled={!pageContext || !!streaming}
-          >
-            {a.label}
-          </button>
-        ))}
+        {pendingImage
+          ? VISION_ACTIONS.map((a) => (
+              <button
+                key={a.label}
+                className="vision-action"
+                onClick={() => send(a.prompt)}
+                disabled={disabled}
+              >
+                📷 {a.label}
+              </button>
+            ))
+          : TEXT_ACTIONS.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => send(a.prompt)}
+                disabled={disabled}
+              >
+                {a.label}
+              </button>
+            ))}
       </div>
+
+      {pendingImage && (
+        <div className="attachment">
+          <img src={pendingImage.dataUrl} alt="pending" />
+          <div className="attachment-meta">
+            <strong>
+              {pendingImage.kind === 'region'
+                ? 'Selected region'
+                : 'Full page'}
+            </strong>
+            <small>will be sent with your next message</small>
+          </div>
+          <button onClick={onClearPendingImage} title="Remove">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="chat-input">
         <textarea

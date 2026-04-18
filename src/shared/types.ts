@@ -32,6 +32,11 @@ export type PageContext = {
   text: string;
 };
 
+export type ChatImage = {
+  kind: 'page' | 'region';
+  dataUrl: string;
+};
+
 export type ChatRequest = {
   requestId: string;
   bookId: string;
@@ -40,6 +45,7 @@ export type ChatRequest = {
   pageLabel: string;
   pageText: string;
   userMessage: string;
+  images?: ChatImage[];
 };
 
 export type ChatChunk = {

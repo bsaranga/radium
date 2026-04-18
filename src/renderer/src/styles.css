@@ -158,6 +158,48 @@ button.primary {
   background: var(--bg);
 }
 
+.reader-toolbar {
+  width: 40px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 6px;
+}
+
+.tool-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-dim);
+  border-radius: 6px;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.tool-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .reader-main {
   flex: 1;
   display: flex;
@@ -335,6 +377,88 @@ button.primary {
 .quick-actions button {
   font-size: 11px;
   padding: 4px 8px;
+}
+
+.chat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.chat-toolbar .toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.chat-toolbar .toggle input {
+  margin: 0;
+}
+
+.vision-action {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.attachment {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.attachment img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.attachment-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  font-size: 12px;
+}
+
+.attachment-meta small {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.region-overlay {
+  user-select: none;
+}
+
+.region-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.region-rect {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(37, 99, 235, 0.15);
+  pointer-events: none;
 }
 
 .chat-input {

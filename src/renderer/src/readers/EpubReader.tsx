@@ -1,16 +1,57 @@
-import { useEffect, useRef } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 import ePub, { type Rendition, type Book as EpubBook } from 'epubjs';
 import type { Book, PageContext } from '../../../shared/types';
 import { isTypingTarget } from '../lib/dom';
+import { captureEpubIframe, captureEpubRegion } from '../lib/capture';
+import type { ReaderHandle } from './types';
 
 type Props = {
   book: Book;
   onPageChange?: (ctx: PageContext) => void;
 };
 
-export function EpubReader({ book, onPageChange }: Props) {
+function findIframe(host: HTMLElement): HTMLIFrameElement | null {
+  return host.querySelector('iframe');
+}
+
+export const EpubReader = forwardRef<ReaderHandle, Props>(function EpubReader(
+  { book, onPageChange },
+  ref,
+) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      capturePage: async () => {
+        const host = viewerRef.current;
+        if (!host) return null;
+        const iframe = findIframe(host);
+        return iframe ? captureEpubIframe(iframe) : null;
+      },
+      captureRegion: async (displayRect, selection) => {
+        const host = viewerRef.current;
+        if (!host) return null;
+        const iframe = findIframe(host);
+        if (!iframe) return null;
+        const iframeRect = iframe.getBoundingClientRect();
+        const localSelection = {
+          x: selection.x + (displayRect.left - iframeRect.left),
+          y: selection.y + (displayRect.top - iframeRect.top),
+          w: selection.w,
+          h: selection.h,
+        };
+        return captureEpubRegion(iframe, iframeRect, localSelection);
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -81,4 +122,4 @@ export function EpubReader({ book, onPageChange }: Props) {
       </div>
     </>
   );
-}
+});
