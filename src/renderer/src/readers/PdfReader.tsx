@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { Book, PageContext } from '../../../shared/types';
+import { isTypingTarget } from '../lib/dom';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
@@ -100,6 +101,7 @@ export function PdfReader({ book, onPageChange }: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       if (e.key === 'ArrowRight' || e.key === 'j' || e.key === ' ')
         setPage((p) => Math.min(numPages, p + 1));
       else if (e.key === 'ArrowLeft' || e.key === 'k')

@@ -90,6 +90,10 @@ export function savePosition(id: string, position: string) {
   db.prepare(`UPDATE books SET position = ? WHERE id = ?`).run(position, id);
 }
 
+export function setCoverPath(id: string, coverPath: string) {
+  db.prepare(`UPDATE books SET cover_path = ? WHERE id = ?`).run(coverPath, id);
+}
+
 export function deleteBook(id: string) {
   db.prepare(`DELETE FROM books WHERE id = ?`).run(id);
   db.prepare(`DELETE FROM messages WHERE book_id = ?`).run(id);

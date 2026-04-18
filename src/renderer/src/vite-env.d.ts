@@ -24,6 +24,7 @@ declare global {
       openBook: (id: string) => Promise<Book | null>;
       savePosition: (id: string, position: string) => Promise<void>;
       deleteBook: (id: string) => Promise<void>;
+      saveCover: (id: string, pngBytes: Uint8Array) => Promise<string>;
 
       listMessages: (bookId: string, pageKey: string) => Promise<ChatMessage[]>;
       clearThread: (bookId: string, pageKey: string) => Promise<void>;

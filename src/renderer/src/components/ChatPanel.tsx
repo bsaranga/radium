@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
 import type {
   Book,
   ChatMessage,
@@ -208,6 +210,30 @@ export function ChatPanel({ book, pageContext, onOpenSettings }: Props) {
   );
 }
 
+function normalizeMathDelimiters(src: string): string {
+  const segments: { text: string; isCode: boolean }[] = [];
+  const codeRe = /(```[\s\S]*?```|`[^`\n]*`)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = codeRe.exec(src))) {
+    if (m.index > last)
+      segments.push({ text: src.slice(last, m.index), isCode: false });
+    segments.push({ text: m[0], isCode: true });
+    last = m.index + m[0].length;
+  }
+  if (last < src.length)
+    segments.push({ text: src.slice(last), isCode: false });
+
+  return segments
+    .map((s) => {
+      if (s.isCode) return s.text;
+      return s.text
+        .replace(/\\\[([\s\S]+?)\\\]/g, (_, body) => `\n$$${body}$$\n`)
+        .replace(/\\\(([\s\S]+?)\\\)/g, (_, body) => `$${body}$`);
+    })
+    .join('');
+}
+
 function Message({
   role,
   content,
@@ -233,10 +259,10 @@ function Message({
           <div className="user-text">{content}</div>
         ) : (
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeHighlight, rehypeKatex]}
           >
-            {content}
+            {normalizeMathDelimiters(content)}
           </ReactMarkdown>
         )}
       </div>

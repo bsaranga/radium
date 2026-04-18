@@ -34,6 +34,26 @@ Goal: right-pane chat wired to an LLM, scoped to the current page.
 
 ---
 
+## Phase 2b — Math Rendering (KaTeX)
+Goal: mathematical notation in AI responses renders as typeset equations, not raw LaTeX, when the content warrants it.
+
+- Add `remark-math` + `rehype-katex` to the chat markdown pipeline; import `katex` CSS.
+- Support inline (`$…$`) and display (`$$…$$`) math.
+- System-prompt guidance: when the current page contains equations/formulas, instruct the model to emit LaTeX math syntax in its answers; otherwise stay in plain prose.
+- Lightweight page-text heuristic (presence of equation-like tokens, Greek letters, `∑ ∫ ∂`, `=` in formula context) to set a `mathLikely` hint passed to the model, so it knows when math formatting is appropriate without having to guess.
+- Copy button preserves raw LaTeX source (not rendered glyphs).
+
+**Exit criteria:** on a math-heavy page, asking "explain this equation" returns a cleanly typeset response; on a prose page, output stays in plain markdown.
+
+### Also in Phase 2b — Library cover thumbnails
+- Generate a cover image for each book on import (and lazily for pre-existing books without one).
+  - PDF: render page 1 to an offscreen canvas at a small scale, export PNG.
+  - EPUB: use `book.coverUrl()` when the package metadata exposes one; fall back to rendering the first spine section.
+- Store covers under `<userData>/covers/<id>.png`; save path in the `books.cover_path` column.
+- Library grid renders the cover image with an aspect-ratio tile; format badge only when no cover exists.
+
+---
+
 ## Phase 3 — Vision: Diagrams, Tables, Figures
 Goal: the AI understands what's visually on the page, not just the extracted text.
 

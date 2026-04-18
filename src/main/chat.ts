@@ -32,12 +32,36 @@ Guidelines:
 - When the user asks you to explain, be concrete: pick the most important ideas, define unfamiliar terminology, and link concepts to each other.
 - Prefer concise, well-structured answers. Use headings, bullet lists, and code blocks when they genuinely aid clarity — not as decoration.
 - Do not repeat the page text back unless asked.
-- Never invent page numbers or citations.`;
+- Never invent page numbers or citations.
+
+Math formatting:
+- The user's chat view renders LaTeX via KaTeX. When math is warranted, you MUST use dollar-sign delimiters: \`$…$\` for inline, \`$$…$$\` for display.
+- Do NOT use \`\\( … \\)\` or \`\\[ … \\]\` — those do not render.
+- Do NOT wrap math in backticks or code fences — that prevents rendering.
+- If the page is plain prose with no math, stay in plain markdown. Do not fabricate equations.
+- A hint \`math_likely=true|false\` is provided in the book context based on a lightweight heuristic; treat it as a signal, not a mandate.`;
+
+function detectMathLikely(text: string): boolean {
+  if (!text) return false;
+  const signals = [
+    /[∑∫∂∇∞≈≠≤≥±×÷√∈∉⊂⊆∪∩]/, // math operators
+    /[α-ωΑ-Ω]/, // greek letters
+    /\\(frac|sum|int|sqrt|alpha|beta|gamma|theta|lambda|mu|sigma|pi|infty)\b/, // LaTeX macros
+    /\b[a-zA-Z]\s*=\s*[-+]?\d/, // variable = number
+    /\b(equation|theorem|lemma|proof|corollary)\b/i,
+    /\^\{[^}]+\}|_\{[^}]+\}/, // ^{…} _{…}
+  ];
+  let hits = 0;
+  for (const re of signals) if (re.test(text)) hits++;
+  return hits >= 2;
+}
 
 function buildUserContent(req: ChatRequest): string {
+  const mathLikely = detectMathLikely(req.pageText);
   return `<book_context>
 Title: ${req.bookTitle}
 Current location: ${req.pageLabel}
+math_likely: ${mathLikely}
 
 Page text:
 ${req.pageText.trim() || '(no extractable text on this page)'}

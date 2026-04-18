@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import ePub, { type Rendition, type Book as EpubBook } from 'epubjs';
 import type { Book, PageContext } from '../../../shared/types';
+import { isTypingTarget } from '../lib/dom';
 
 type Props = {
   book: Book;
@@ -57,6 +58,7 @@ export function EpubReader({ book, onPageChange }: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       const r = renditionRef.current;
       if (!r) return;
       if (e.key === 'ArrowRight' || e.key === 'j' || e.key === ' ') r.next();

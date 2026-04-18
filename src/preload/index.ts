@@ -22,6 +22,8 @@ const api = {
     ipcRenderer.invoke('books:savePosition', id, position),
   deleteBook: (id: string): Promise<void> =>
     ipcRenderer.invoke('books:delete', id),
+  saveCover: (id: string, pngBytes: Uint8Array): Promise<string> =>
+    ipcRenderer.invoke('books:saveCover', id, pngBytes),
 
   listMessages: (bookId: string, pageKey: string): Promise<ChatMessage[]> =>
     ipcRenderer.invoke('chat:messages', bookId, pageKey),

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import { join, basename, extname } from 'node:path';
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import {
@@ -15,6 +15,7 @@ import {
   clearThread,
   getSetting,
   setSetting,
+  setCoverPath,
   type Book,
 } from './db';
 import { runChat, getApiKey, setApiKey } from './chat';
@@ -109,6 +110,17 @@ app.whenReady().then(() => {
   ipcMain.handle('books:delete', (_e, id: string) => {
     deleteBook(id);
   });
+
+  ipcMain.handle(
+    'books:saveCover',
+    (_e, id: string, pngBytes: Uint8Array) => {
+      const coversDir = join(app.getPath('userData'), 'covers');
+      const coverPath = join(coversDir, `${id}.png`);
+      writeFileSync(coverPath, Buffer.from(pngBytes));
+      setCoverPath(id, coverPath);
+      return coverPath;
+    },
+  );
 
   ipcMain.handle('chat:messages', (_e, bookId: string, pageKey: string) =>
     listMessages(bookId, pageKey),
