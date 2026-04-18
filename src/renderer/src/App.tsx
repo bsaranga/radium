@@ -40,7 +40,7 @@ export function App() {
         {view.name === 'reader' && (
           <button onClick={() => setView({ name: 'library' })}>← Library</button>
         )}
-        <h1>ReaderAI</h1>
+        <h1>Radium</h1>
         <div className="spacer" />
         {view.name === 'reader' && (
           <>

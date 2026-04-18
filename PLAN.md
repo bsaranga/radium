@@ -1,4 +1,4 @@
-# ReaderAI — Phased Build Plan
+# Radium — Phased Build Plan
 
 A desktop app for reading ebooks (non-fiction, technical books, papers) alongside an AI assistant. Left pane: book page. Right pane: chat. History persists per book.
 

@@ -181,7 +181,7 @@ export const EpubReader = forwardRef<ReaderHandle, Props>(function EpubReader(
           h.anchor,
           { id: h.id },
           undefined,
-          'reader-ai-hl',
+          'radium-hl',
           { fill: h.color, 'fill-opacity': '0.35' },
         );
         appliedHighlightsRef.current.add(h.id);

@@ -1,7 +1,7 @@
 {
-  "name": "reader-ai",
+  "name": "radium",
   "version": "0.1.0",
-  "description": "ReaderAI — read ebooks alongside an AI assistant",
+  "description": "Radium — read ebooks alongside an AI assistant",
   "main": "out/main/index.js",
   "author": "",
   "license": "MIT",

@@ -27,7 +27,7 @@ export async function setApiKey(key: string): Promise<void> {
   }
 }
 
-const SYSTEM_PROMPT = `You are ReaderAI, an assistant embedded in an ebook reader. The user is reading a non-fiction, technical, or scholarly work and is asking questions about the page currently open in front of them.
+const SYSTEM_PROMPT = `You are Radium, an assistant embedded in an ebook reader. The user is reading a non-fiction, technical, or scholarly work and is asking questions about the page currently open in front of them.
 
 Guidelines:
 - Ground your answers in the provided page text. If the page alone is insufficient, say so, then answer from general knowledge while being explicit about the distinction.
