@@ -191,12 +191,245 @@ button.primary {
   height: 100%;
 }
 
-.chat-placeholder {
-  width: 360px;
+/* Chat panel */
+.chat-panel {
+  width: 420px;
   border-left: 1px solid var(--border);
   background: var(--bg-elev);
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chat-sub {
+  font-size: 11px;
+  color: var(--fg-dim);
+  margin-top: 2px;
+}
+
+.chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chat-empty {
   color: var(--fg-dim);
   font-size: 13px;
+  text-align: center;
+  margin-top: 40px;
+  line-height: 1.5;
+}
+
+.chat-error {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.msg-role {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.msg-body {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.msg-user .msg-body {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.msg-user .user-text {
+  white-space: pre-wrap;
+}
+
+.msg-body > :first-child { margin-top: 0; }
+.msg-body > :last-child { margin-bottom: 0; }
+.msg-body p { margin: 0.5em 0; }
+.msg-body ul, .msg-body ol { margin: 0.5em 0; padding-left: 1.5em; }
+.msg-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--bg-elev);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.msg-body pre {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.msg-body pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+}
+.icon-btn:hover { color: var(--fg); }
+
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.quick-actions button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.chat-input {
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal h2 {
+  margin: 0 0 20px;
+  font-size: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field input, .field select {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.field small {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }

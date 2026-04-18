@@ -2,9 +2,9 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Book, ChatMessage, ChatRole } from '../shared/types';
 
-import type { Book } from '../shared/types';
-export type { Book };
+export type { Book, ChatMessage };
 
 let db: Database.Database;
 
@@ -26,10 +26,25 @@ export function initDb() {
       last_opened_at INTEGER,
       position TEXT
     );
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      book_id TEXT NOT NULL,
+      page_key TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_messages_book_page
+      ON messages (book_id, page_key, created_at);
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 }
 
-function row(r: any): Book {
+function bookRow(r: any): Book {
   return {
     id: r.id,
     title: r.title,
@@ -49,12 +64,12 @@ export function listBooks(): Book[] {
       `SELECT * FROM books ORDER BY COALESCE(last_opened_at, added_at) DESC`,
     )
     .all()
-    .map(row);
+    .map(bookRow);
 }
 
 export function getBook(id: string): Book | null {
   const r = db.prepare(`SELECT * FROM books WHERE id = ?`).get(id);
-  return r ? row(r) : null;
+  return r ? bookRow(r) : null;
 }
 
 export function insertBook(b: Book) {
@@ -77,4 +92,56 @@ export function savePosition(id: string, position: string) {
 
 export function deleteBook(id: string) {
   db.prepare(`DELETE FROM books WHERE id = ?`).run(id);
+  db.prepare(`DELETE FROM messages WHERE book_id = ?`).run(id);
+}
+
+function msgRow(r: any): ChatMessage {
+  return {
+    id: r.id,
+    bookId: r.book_id,
+    pageKey: r.page_key,
+    role: r.role as ChatRole,
+    content: r.content,
+    createdAt: r.created_at,
+  };
+}
+
+export function listMessages(bookId: string, pageKey: string): ChatMessage[] {
+  return db
+    .prepare(
+      `SELECT * FROM messages WHERE book_id = ? AND page_key = ? ORDER BY created_at ASC`,
+    )
+    .all(bookId, pageKey)
+    .map(msgRow);
+}
+
+export function insertMessage(m: ChatMessage) {
+  db.prepare(
+    `INSERT INTO messages (id, book_id, page_key, role, content, created_at)
+     VALUES (@id, @bookId, @pageKey, @role, @content, @createdAt)`,
+  ).run(m);
+}
+
+export function updateMessageContent(id: string, content: string) {
+  db.prepare(`UPDATE messages SET content = ? WHERE id = ?`).run(content, id);
+}
+
+export function clearThread(bookId: string, pageKey: string) {
+  db.prepare(
+    `DELETE FROM messages WHERE book_id = ? AND page_key = ?`,
+  ).run(bookId, pageKey);
+}
+
+export function getSetting(key: string): string | null {
+  const r = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as
+    | { value: string }
+    | undefined;
+  return r?.value ?? null;
+}
+
+export function setSetting(key: string, value: string) {
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, value);
 }

@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import ePub, { type Rendition, type Book as EpubBook } from 'epubjs';
-import type { Book } from '../../../shared/types';
+import type { Book, PageContext } from '../../../shared/types';
 
-export function EpubReader({ book }: { book: Book }) {
+type Props = {
+  book: Book;
+  onPageChange?: (ctx: PageContext) => void;
+};
+
+export function EpubReader({ book, onPageChange }: Props) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
-  const [location, setLocation] = useState<string>(book.position ?? '');
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -23,9 +27,24 @@ export function EpubReader({ book }: { book: Book }) {
 
     rendition.on('relocated', (loc: any) => {
       const cfi = loc?.start?.cfi;
-      if (cfi) {
-        setLocation(cfi);
-        window.api.savePosition(book.id, cfi);
+      if (cfi) window.api.savePosition(book.id, cfi);
+
+      if (onPageChange) {
+        const pageKey = loc?.start?.href
+          ? `epub:${loc.start.href}`
+          : `epub:${cfi ?? 'unknown'}`;
+        const label = loc?.start?.displayed
+          ? `Loc ${loc.start.displayed.page}/${loc.start.displayed.total}`
+          : 'Current location';
+
+        const contents: any[] = (rendition as any).getContents?.() ?? [];
+        const text = contents
+          .map((c) => c?.content?.innerText ?? c?.document?.body?.innerText ?? '')
+          .join('\n')
+          .replace(/\s+\n/g, '\n')
+          .trim();
+
+        onPageChange({ pageKey, pageLabel: label, text });
       }
     });
 

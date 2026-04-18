@@ -11,8 +11,14 @@ import {
   touchBook,
   savePosition,
   deleteBook,
+  listMessages,
+  clearThread,
+  getSetting,
+  setSetting,
   type Book,
 } from './db';
+import { runChat, getApiKey, setApiKey } from './chat';
+import type { ChatRequest } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -103,6 +109,31 @@ app.whenReady().then(() => {
   ipcMain.handle('books:delete', (_e, id: string) => {
     deleteBook(id);
   });
+
+  ipcMain.handle('chat:messages', (_e, bookId: string, pageKey: string) =>
+    listMessages(bookId, pageKey),
+  );
+
+  ipcMain.handle('chat:clear', (_e, bookId: string, pageKey: string) => {
+    clearThread(bookId, pageKey);
+  });
+
+  ipcMain.handle('chat:send', (e, req: ChatRequest) => {
+    runChat(e.sender, req);
+  });
+
+  ipcMain.handle('settings:get', async () => ({
+    model: getSetting('model') ?? 'gpt-4o-mini',
+    hasApiKey: Boolean(await getApiKey()),
+  }));
+
+  ipcMain.handle(
+    'settings:set',
+    async (_e, payload: { model?: string; apiKey?: string }) => {
+      if (payload.model) setSetting('model', payload.model);
+      if (payload.apiKey !== undefined) await setApiKey(payload.apiKey);
+    },
+  );
 
   createWindow();
 

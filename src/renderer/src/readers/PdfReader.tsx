@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import type { Book } from '../../../shared/types';
+import type { Book, PageContext } from '../../../shared/types';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-export function PdfReader({ book }: { book: Book }) {
+type Props = {
+  book: Book;
+  onPageChange?: (ctx: PageContext) => void;
+};
+
+export function PdfReader({ book, onPageChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [page, setPage] = useState<number>(() => {
@@ -61,6 +66,22 @@ export function PdfReader({ book }: { book: Book }) {
         const task = p.render({ canvasContext: ctx, viewport: scaled });
         renderTaskRef.current = task;
         await task.promise;
+
+        if (onPageChange) {
+          const textContent = await p.getTextContent();
+          const text = textContent.items
+            .map((item: any) => ('str' in item ? item.str : ''))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (!cancelled) {
+            onPageChange({
+              pageKey: `pdf:${page}`,
+              pageLabel: `Page ${page}`,
+              text,
+            });
+          }
+        }
       } catch (err: any) {
         if (err?.name !== 'RenderingCancelledException')
           console.error('pdf render', err);

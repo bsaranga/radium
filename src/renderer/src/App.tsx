@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Library } from './views/Library';
 import { Reader } from './views/Reader';
+import { SettingsModal } from './components/SettingsModal';
 import type { Book } from '../../shared/types';
 
 type View = { name: 'library' } | { name: 'reader'; book: Book };
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'library' });
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') ?? 'dark',
   );
@@ -55,12 +57,22 @@ export function App() {
         >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
+        <button onClick={() => setSettingsOpen(true)} title="Settings">
+          ⚙
+        </button>
       </div>
 
       {view.name === 'library' ? (
         <Library onOpen={openBook} />
       ) : (
-        <Reader book={view.book} />
+        <Reader
+          book={view.book}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );
