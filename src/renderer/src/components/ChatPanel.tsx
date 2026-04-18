@@ -8,18 +8,34 @@ import type {
   Book,
   ChatImage,
   ChatMessage,
+  ChatScope,
+  Highlight,
+  IndexProgress,
+  IndexStatus,
   PageContext,
 } from '../../../shared/types';
+import { effectivePageKey } from '../../../shared/types';
+import type { SelectionEvent } from '../readers/types';
+import { HighlightsCarousel } from './HighlightsCarousel';
+import { extractChunksForIndexing } from '../lib/indexing';
 
 type Props = {
   book: Book;
   pageContext: PageContext | null;
   pendingImage: ChatImage | null;
   onClearPendingImage: () => void;
+  onCaptureFullPage: () => Promise<ChatImage | null>;
+  pendingPrompt: { text: string; selection: SelectionEvent } | null;
+  onConsumePendingPrompt: () => void;
+  highlights: Highlight[];
+  onAskAboutHighlight: (h: Highlight) => void;
+  onDeleteHighlight: (h: Highlight) => void;
   onOpenSettings: () => void;
 };
 
-const TEXT_ACTIONS = [
+const PAGE_TEXT_FALLBACK_THRESHOLD = 40;
+
+const PAGE_ACTIONS = [
   { label: 'Explain this page', prompt: 'Explain the key ideas on this page.' },
   { label: 'Summarize', prompt: 'Summarize this page in a few bullet points.' },
   {
@@ -28,6 +44,34 @@ const TEXT_ACTIONS = [
       'List and define the key technical terms introduced on this page.',
   },
   { label: 'ELI5', prompt: 'Explain this page like I am five.' },
+];
+
+const BOOK_ACTIONS = [
+  {
+    label: 'Prerequisites',
+    prompt:
+      'What prerequisites — topics, skills, or prior reading — does this book assume? Base this on the book itself, not guesses.',
+  },
+  {
+    label: 'Summarize book',
+    prompt:
+      'Summarize this entire book. Cover: the thesis, the main arguments or topics by section, and the conclusion. Keep it under 400 words.',
+  },
+  {
+    label: 'Key takeaways',
+    prompt:
+      'What are the key takeaways from this book? Give a short bulleted list of the most important ideas a reader should leave with.',
+  },
+  {
+    label: 'Who is it for?',
+    prompt:
+      'Who is this book written for? Describe the intended audience and what they get out of it.',
+  },
+  {
+    label: 'Table of contents',
+    prompt:
+      'Infer a table of contents for this book from the retrieved excerpts. List chapters or major sections with a one-line description each.',
+  },
 ];
 
 const VISION_ACTIONS = [
@@ -57,24 +101,79 @@ export function ChatPanel({
   pageContext,
   pendingImage,
   onClearPendingImage,
+  onCaptureFullPage,
+  pendingPrompt,
+  onConsumePendingPrompt,
+  highlights,
+  onAskAboutHighlight,
+  onDeleteHighlight,
   onOpenSettings,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [stagedSelection, setStagedSelection] =
+    useState<SelectionEvent | null>(null);
   const [streaming, setStreaming] = useState<{
     requestId: string;
     text: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<ChatScope>('page');
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
+  const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(
+    null,
+  );
+  const [preparing, setPreparing] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const pageKey = pageContext?.pageKey ?? '';
+  const threadKey = pageKey ? effectivePageKey(scope, pageKey) : '';
 
   useEffect(() => {
-    if (!pageKey) return;
-    window.api.listMessages(book.id, pageKey).then(setMessages);
+    if (!threadKey) return;
+    window.api.listMessages(book.id, threadKey).then(setMessages);
     setStreaming(null);
     setError(null);
-  }, [book.id, pageKey]);
+  }, [book.id, threadKey]);
+
+  useEffect(() => {
+    window.api.indexStatus(book.id).then(setIndexStatus);
+  }, [book.id]);
+
+  useEffect(() => {
+    return window.api.onIndexProgress((p) => {
+      if (p.bookId !== book.id) return;
+      setIndexProgress(p);
+      if (p.phase === 'done') {
+        window.api.indexStatus(book.id).then(setIndexStatus);
+      } else if (p.phase === 'error') {
+        setError(p.message ?? 'Indexing failed');
+      }
+    });
+  }, [book.id]);
+
+  const buildIndex = useCallback(async () => {
+    setError(null);
+    setPreparing(true);
+    try {
+      const chunks = await extractChunksForIndexing(book);
+      if (chunks.length === 0) {
+        setError('No extractable text found in this book.');
+        return;
+      }
+      setIndexProgress({
+        bookId: book.id,
+        phase: 'embedding',
+        embedded: 0,
+        total: chunks.length,
+      });
+      await window.api.buildIndex(book.id, chunks);
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to prepare index');
+    } finally {
+      setPreparing(false);
+    }
+  }, [book]);
 
   useEffect(() => {
     const offChunk = window.api.onChatChunk((c) => {
@@ -86,16 +185,16 @@ export function ChatPanel({
     });
     const offDone = window.api.onChatDone(async () => {
       setStreaming(null);
-      if (pageKey) {
-        const m = await window.api.listMessages(book.id, pageKey);
+      if (threadKey) {
+        const m = await window.api.listMessages(book.id, threadKey);
         setMessages(m);
       }
     });
     const offErr = window.api.onChatError(async (e) => {
       setError(e.message);
       setStreaming(null);
-      if (pageKey) {
-        const m = await window.api.listMessages(book.id, pageKey);
+      if (threadKey) {
+        const m = await window.api.listMessages(book.id, threadKey);
         setMessages(m);
       }
     });
@@ -104,7 +203,7 @@ export function ChatPanel({
       offDone();
       offErr();
     };
-  }, [book.id, pageKey]);
+  }, [book.id, threadKey]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -112,18 +211,33 @@ export function ChatPanel({
   }, [messages, streaming?.text]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, selectionOverride?: SelectionEvent | null) => {
       const content = text.trim();
       if (!content || !pageContext || streaming) return;
       setError(null);
 
       const images: ChatImage[] = pendingImage ? [pendingImage] : [];
+      const sel = selectionOverride ?? stagedSelection;
+
+      // Vision fallback: in page scope with no attachment, if the page has
+      // no meaningful extractable text, auto-capture it so the model can
+      // read from the image (cover pages, scanned PDFs, image-only sections).
+      const pageTextLen = pageContext.text.trim().length;
+      if (
+        scope === 'page' &&
+        images.length === 0 &&
+        !sel &&
+        pageTextLen < PAGE_TEXT_FALLBACK_THRESHOLD
+      ) {
+        const fallback = await onCaptureFullPage();
+        if (fallback) images.push(fallback);
+      }
 
       const requestId = crypto.randomUUID();
       const optimistic: ChatMessage = {
         id: `temp-${requestId}`,
         bookId: book.id,
-        pageKey: pageContext.pageKey,
+        pageKey: threadKey,
         role: 'user',
         content,
         createdAt: Date.now(),
@@ -132,25 +246,54 @@ export function ChatPanel({
       setStreaming({ requestId, text: '' });
       setInput('');
       onClearPendingImage();
+      setStagedSelection(null);
 
       await window.api.sendChat({
         requestId,
         bookId: book.id,
         bookTitle: book.title,
-        pageKey: pageContext.pageKey,
-        pageLabel: pageContext.pageLabel,
+        pageKey: sel?.pageKey ?? pageContext.pageKey,
+        pageLabel: sel?.pageLabel ?? pageContext.pageLabel,
         pageText: pageContext.text,
         userMessage: content,
         images: images.length ? images : undefined,
+        selectedText: sel?.text,
+        scope,
       });
     },
-    [book, pageContext, streaming, pendingImage, onClearPendingImage],
+    [
+      book,
+      pageContext,
+      streaming,
+      pendingImage,
+      stagedSelection,
+      onClearPendingImage,
+      onCaptureFullPage,
+      scope,
+      threadKey,
+    ],
   );
 
+  // Handle pending prompt from selection toolbar
+  useEffect(() => {
+    if (!pendingPrompt || !pageContext) return;
+    const { text, selection } = pendingPrompt;
+    if (text) {
+      onConsumePendingPrompt();
+      send(text, selection);
+    } else {
+      setStagedSelection(selection);
+      setInput('');
+      inputRef.current?.focus();
+      onConsumePendingPrompt();
+    }
+  }, [pendingPrompt, pageContext, onConsumePendingPrompt, send]);
+
   const clear = async () => {
-    if (!pageKey) return;
-    if (!confirm('Clear chat history for this page?')) return;
-    await window.api.clearThread(book.id, pageKey);
+    if (!threadKey) return;
+    const scopeLabel = scope === 'book' ? 'whole book' : 'this page';
+    if (!confirm(`Clear chat history for ${scopeLabel}?`)) return;
+    await window.api.clearThread(book.id, threadKey);
     setMessages([]);
   };
 
@@ -170,7 +313,13 @@ export function ChatPanel({
           <strong>AI Chat</strong>
           <div className="chat-sub">
             {pageContext
-              ? `Scope: ${pageContext.pageLabel}`
+              ? scope === 'page'
+                ? `Scope: ${pageContext.pageLabel}`
+                : `Scope: Whole book${
+                    indexStatus?.chunkCount
+                      ? ` · ${indexStatus.chunkCount} chunks`
+                      : ''
+                  }`
               : 'Loading page…'}
           </div>
         </div>
@@ -187,6 +336,40 @@ export function ChatPanel({
           </button>
         </div>
       </div>
+
+      <div className="scope-toggle" role="tablist">
+        <button
+          className={scope === 'page' ? 'active' : ''}
+          onClick={() => setScope('page')}
+          role="tab"
+        >
+          Page
+        </button>
+        <button
+          className={scope === 'book' ? 'active' : ''}
+          onClick={() => setScope('book')}
+          role="tab"
+        >
+          Whole book
+        </button>
+      </div>
+
+      {scope === 'book' && (!indexStatus?.indexed || indexProgress) && (
+        <IndexBanner
+          indexStatus={indexStatus}
+          progress={indexProgress}
+          preparing={preparing}
+          onBuild={buildIndex}
+        />
+      )}
+
+      {scope === 'page' && (
+        <HighlightsCarousel
+          highlights={highlights.filter((h) => h.pageKey === pageKey)}
+          onAskAbout={onAskAboutHighlight}
+          onDelete={onDeleteHighlight}
+        />
+      )}
 
       <div className="chat-scroll" ref={scrollerRef}>
         {messages.length === 0 && !streaming && (
@@ -220,11 +403,19 @@ export function ChatPanel({
                 📷 {a.label}
               </button>
             ))
-          : TEXT_ACTIONS.map((a) => (
+          : (scope === 'book' ? BOOK_ACTIONS : PAGE_ACTIONS).map((a) => (
               <button
                 key={a.label}
                 onClick={() => send(a.prompt)}
-                disabled={disabled}
+                disabled={
+                  disabled ||
+                  (scope === 'book' && !indexStatus?.indexed)
+                }
+                title={
+                  scope === 'book' && !indexStatus?.indexed
+                    ? 'Index the book first'
+                    : undefined
+                }
               >
                 {a.label}
               </button>
@@ -248,14 +439,36 @@ export function ChatPanel({
         </div>
       )}
 
+      {stagedSelection && (
+        <div className="selection-chip">
+          <div className="selection-chip-body">
+            <strong>Selected · {stagedSelection.pageLabel}</strong>
+            <span>"{truncate(stagedSelection.text, 140)}"</span>
+          </div>
+          <button
+            onClick={() => setStagedSelection(null)}
+            title="Remove selection"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <div className="chat-input">
         <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={
             pageContext
-              ? 'Ask about this page… (Enter to send, Shift+Enter for newline)'
+              ? stagedSelection
+                ? 'Ask about the selected passage…'
+                : scope === 'book'
+                  ? indexStatus?.indexed
+                    ? 'Ask about the whole book… (Enter to send)'
+                    : 'Index the book to enable whole-book chat.'
+                  : 'Ask about this page… (Enter to send, Shift+Enter for newline)'
               : 'Loading page…'
           }
           rows={3}
@@ -271,6 +484,55 @@ export function ChatPanel({
       </div>
     </div>
   );
+}
+
+function IndexBanner({
+  indexStatus,
+  progress,
+  preparing,
+  onBuild,
+}: {
+  indexStatus: IndexStatus | null;
+  progress: IndexProgress | null;
+  preparing: boolean;
+  onBuild: () => void;
+}) {
+  const active =
+    preparing ||
+    (progress && progress.phase === 'embedding' && progress.total > 0);
+  const pct = progress?.total
+    ? Math.round((progress.embedded / progress.total) * 100)
+    : 0;
+
+  if (active) {
+    return (
+      <div className="index-banner">
+        <div>
+          {preparing && !progress
+            ? 'Extracting book text…'
+            : `Indexing · ${progress?.embedded ?? 0}/${progress?.total ?? 0}`}
+        </div>
+        <div className="index-bar">
+          <div className="index-bar-fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (indexStatus?.indexed) return null;
+
+  return (
+    <div className="index-banner">
+      <div>Whole-book chat needs an index. This uses OpenAI embeddings.</div>
+      <button className="primary" onClick={onBuild}>
+        Index this book
+      </button>
+    </div>
+  );
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1).trimEnd() + '…';
 }
 
 function normalizeMathDelimiters(src: string): string {

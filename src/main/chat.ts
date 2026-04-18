@@ -8,7 +8,9 @@ import {
   listMessages,
   updateMessageContent,
 } from './db';
-import type { ChatRequest } from '../shared/types';
+import type { ChatRequest, RetrievedChunk } from '../shared/types';
+import { effectivePageKey } from '../shared/types';
+import { retrieve } from './embed';
 
 const KEYTAR_SERVICE = 'ReaderAI';
 const KEYTAR_ACCOUNT = 'openai-api-key';
@@ -33,6 +35,14 @@ Guidelines:
 - Prefer concise, well-structured answers. Use headings, bullet lists, and code blocks when they genuinely aid clarity — not as decoration.
 - Do not repeat the page text back unless asked.
 - Never invent page numbers or citations.
+
+Selection:
+- If the book context includes a \`<selection>\` block, the user is asking specifically about that passage. Answer about the selection first; use surrounding page text only as context.
+- When quoting the book, quote from the selection or page text verbatim; do not paraphrase inside quotes.
+
+Citations:
+- When your answer leans on a specific part of the page, cite the location inline as \`(<page_label>)\` — e.g. \`(Page 42)\` or the EPUB location label provided. Do not invent labels; only use what the book context provides.
+- When retrieved excerpts from elsewhere in the book are provided in \`<retrieved_context>\`, cite them using the \`source\` label attached to each excerpt, e.g. \`(Page 12)\` or \`(§ Chapter 3)\`. Do not conflate these with the current page label.
 
 Images:
 - When the user attaches a page or region image, treat it as authoritative for any diagrams, figures, tables, or equations that don't round-trip through extracted text. Read what's actually drawn.
@@ -61,27 +71,57 @@ function detectMathLikely(text: string): boolean {
   return hits >= 2;
 }
 
-function buildUserText(req: ChatRequest): string {
+function buildRetrievedBlock(chunks: RetrievedChunk[]): string {
+  if (chunks.length === 0) return '';
+  const body = chunks
+    .map(
+      (c, i) =>
+        `[${i + 1}] source="${c.sourceLabel}"\n${c.text.trim()}`,
+    )
+    .join('\n\n');
+  return `\n<retrieved_context>\nThese excerpts were pulled from elsewhere in the book and may be relevant:\n\n${body}\n</retrieved_context>\n`;
+}
+
+function buildUserText(req: ChatRequest, retrieved: RetrievedChunk[]): string {
   const mathLikely = detectMathLikely(req.pageText);
   const imageNote = req.images?.length
     ? `\nAttached images: ${req.images
         .map((i) => (i.kind === 'region' ? 'selected region' : 'full page'))
         .join(', ')}.`
     : '';
+  const selectionBlock = req.selectedText?.trim()
+    ? `\n<selection>\n${req.selectedText.trim()}\n</selection>\n`
+    : '';
+  const retrievedBlock = buildRetrievedBlock(retrieved);
+
+  if (req.scope === 'book') {
+    return `<book_context>
+Title: ${req.bookTitle}
+scope: book
+math_likely: ${mathLikely}${imageNote}
+${selectionBlock}${retrievedBlock}</book_context>
+
+${req.userMessage}`;
+  }
+
   return `<book_context>
 Title: ${req.bookTitle}
 Current location: ${req.pageLabel}
+scope: page
 math_likely: ${mathLikely}${imageNote}
-
+${selectionBlock}
 Page text:
 ${req.pageText.trim() || '(no extractable text on this page)'}
-</book_context>
+${retrievedBlock}</book_context>
 
 ${req.userMessage}`;
 }
 
-function buildUserMessage(req: ChatRequest) {
-  const text = buildUserText(req);
+function buildUserMessage(
+  req: ChatRequest,
+  retrieved: RetrievedChunk[],
+) {
+  const text = buildUserText(req, retrieved);
   if (!req.images?.length) return { role: 'user' as const, content: text };
   const parts: any[] = [{ type: 'text', text }];
   for (const img of req.images) {
@@ -109,16 +149,18 @@ export async function runChat(
 
   const model = getSetting('model') ?? 'gpt-4o-mini';
 
+  const threadKey = effectivePageKey(req.scope, req.pageKey);
+
   insertMessage({
     id: randomUUID(),
     bookId: req.bookId,
-    pageKey: req.pageKey,
+    pageKey: threadKey,
     role: 'user',
     content: req.userMessage,
     createdAt: Date.now(),
   });
 
-  const history = listMessages(req.bookId, req.pageKey);
+  const history = listMessages(req.bookId, threadKey);
   const historyMessages = history.slice(0, -1).map((m) => ({
     role: m.role,
     content: m.content,
@@ -128,7 +170,7 @@ export async function runChat(
   insertMessage({
     id: assistantId,
     bookId: req.bookId,
-    pageKey: req.pageKey,
+    pageKey: threadKey,
     role: 'assistant',
     content: '',
     createdAt: Date.now(),
@@ -137,6 +179,16 @@ export async function runChat(
   const client = new OpenAI({ apiKey });
   let accumulated = '';
 
+  let retrieved: RetrievedChunk[] = [];
+  if (req.scope === 'book') {
+    try {
+      const q = [req.userMessage, req.selectedText].filter(Boolean).join('\n');
+      retrieved = await retrieve(req.bookId, q, 6);
+    } catch (err) {
+      console.warn('retrieval failed', err);
+    }
+  }
+
   try {
     const stream = await client.chat.completions.create({
       model,
@@ -144,7 +196,7 @@ export async function runChat(
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         ...historyMessages,
-        buildUserMessage(req),
+        buildUserMessage(req, retrieved),
       ] as any,
     });
 

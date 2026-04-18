@@ -92,6 +92,19 @@ Goal: make the assistant feel native to reading.
 
 ---
 
+## Phase 4b — Highlights carousel in chat pane
+Goal: put the page's saved highlights at the user's fingertips without switching views.
+
+- A compact carousel sits at the top of the chat pane, showing only highlights for the current page/location.
+- One highlight visible at a time with ← / → controls and an "i of n" counter.
+- Each item exposes: the quoted text, and quick actions (Ask about this, Delete).
+- Hidden when the page has no highlights.
+- Updates live as highlights are added/removed and as the user turns pages.
+
+**Exit criteria:** create two highlights on a page, flip through them in the carousel, ask a question scoped to one, delete the other.
+
+---
+
 ## Phase 5 — Whole-Book Understanding (RAG)
 Goal: questions that span chapters, not just the current page.
 
@@ -101,6 +114,45 @@ Goal: questions that span chapters, not just the current page.
 - Chapter-aware summaries cached per chapter.
 
 **Exit criteria:** "Where did the author first introduce X?" works reliably.
+
+---
+
+## Phase 5b — Book-scope polish
+Goal: whole-book mode should feel like a different conversation, not just a routing flag.
+
+- Quick prompts swap to book-level when scope is Whole book:
+  - "Prerequisites for this book"
+  - "Summarize this book"
+  - "Key takeaways"
+  - "Who is this book for?"
+  - "Table of contents (inferred)"
+- Chat input placeholder adapts to scope ("Ask about this page…" vs. "Ask about the whole book…").
+- Library thumbnails get a corner ribbon with an icon marking indexed books, so the user can see at a glance which titles support whole-book chat.
+
+**Exit criteria:** toggling scope to Whole book swaps the action row and placeholder; indexed books show the ribbon in the library grid; unindexed books do not.
+
+---
+
+## Phase 5c — Remove-from-library + scope isolation
+Goal: let users take books out, and stop page and book conversations from bleeding into each other.
+
+- Library cards expose a delete affordance on hover. Confirm before deleting.
+- Deleting a book removes: the DB row, all its chat messages, all highlights, all embedding chunks, the cover file, and the copied book file on disk — leaving no trace under userData.
+- Page-scope and book-scope chats are stored on separate threads. Turning pages does not surface book-scope history, and switching to Whole book does not surface page history.
+- In Whole book scope the prompt does not inject the current page text; the model sees retrieved excerpts and book metadata only.
+
+**Exit criteria:** adding and deleting the same book twice leaves the DB and userData clean; page-scope and book-scope chats show different history lists; a book-scope question does not recall a page-scope answer.
+
+---
+
+## Phase 5d — Vision fallback for text-less pages
+Goal: cover pages, title pages, scanned PDFs, and image-only EPUB sections should just work, without the user having to manually attach an image.
+
+- When sending a page-scope prompt, if the current page has no meaningful extractable text (empty or below a small threshold of characters) and no image is already attached, automatically capture the full page and include it as a vision attachment.
+- This only applies when scope is Page and no user-selected region is pending — the existing manual region attachment flow remains untouched.
+- The attached page image is a one-shot fallback, not shown as a persistent chip. The model's system prompt already knows how to read from images.
+
+**Exit criteria:** on a scanned PDF page or a PDF cover with only an image, asking "what's on this page?" returns a grounded answer without the user pressing any region/attach control.
 
 ---
 

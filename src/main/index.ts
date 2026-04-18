@@ -1,6 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import { join, basename, extname } from 'node:path';
-import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  writeFileSync,
+  unlinkSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import {
@@ -16,10 +21,19 @@ import {
   getSetting,
   setSetting,
   setCoverPath,
+  listHighlights,
+  insertHighlight,
+  deleteHighlight,
   type Book,
 } from './db';
+import type { Highlight } from '../shared/types';
 import { runChat, getApiKey, setApiKey } from './chat';
-import type { ChatRequest } from '../shared/types';
+import { buildIndex, indexStatus } from './embed';
+import type {
+  ChatRequest,
+  RawChunk,
+  IndexStatus,
+} from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -88,6 +102,7 @@ app.whenReady().then(() => {
         addedAt: Date.now(),
         lastOpenedAt: null,
         position: null,
+        indexedAt: null,
       };
       insertBook(book);
       imported.push(book);
@@ -108,7 +123,19 @@ app.whenReady().then(() => {
   );
 
   ipcMain.handle('books:delete', (_e, id: string) => {
+    const b = getBook(id);
     deleteBook(id);
+    if (b) {
+      for (const p of [b.filePath, b.coverPath]) {
+        if (p && existsSync(p)) {
+          try {
+            unlinkSync(p);
+          } catch (err) {
+            console.warn('failed to remove file', p, err);
+          }
+        }
+      }
+    }
   });
 
   ipcMain.handle(
@@ -133,6 +160,32 @@ app.whenReady().then(() => {
   ipcMain.handle('chat:send', (e, req: ChatRequest) => {
     runChat(e.sender, req);
   });
+
+  ipcMain.handle(
+    'highlights:list',
+    (_e, bookId: string, pageKey?: string) =>
+      listHighlights(bookId, pageKey),
+  );
+  ipcMain.handle('highlights:add', (_e, h: Highlight) => {
+    insertHighlight(h);
+  });
+  ipcMain.handle('highlights:delete', (_e, id: string) => {
+    deleteHighlight(id);
+  });
+
+  ipcMain.handle(
+    'index:build',
+    (e, bookId: string, chunks: RawChunk[]) => {
+      buildIndex(e.sender, bookId, chunks);
+    },
+  );
+  ipcMain.handle(
+    'index:status',
+    (_e, bookId: string): IndexStatus => {
+      const b = getBook(bookId);
+      return indexStatus(bookId, b?.indexedAt ?? null);
+    },
+  );
 
   ipcMain.handle('settings:get', async () => ({
     model: getSetting('model') ?? 'gpt-4o-mini',

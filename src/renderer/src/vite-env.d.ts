@@ -7,6 +7,10 @@ import type {
   ChatError,
   ChatMessage,
   ChatRequest,
+  Highlight,
+  IndexProgress,
+  IndexStatus,
+  RawChunk,
   Settings,
 } from '../../shared/types';
 
@@ -33,6 +37,17 @@ declare global {
       onChatChunk: (cb: (c: ChatChunk) => void) => () => void;
       onChatDone: (cb: (d: ChatDone) => void) => () => void;
       onChatError: (cb: (e: ChatError) => void) => () => void;
+
+      listHighlights: (
+        bookId: string,
+        pageKey?: string,
+      ) => Promise<Highlight[]>;
+      addHighlight: (h: Highlight) => Promise<void>;
+      deleteHighlight: (id: string) => Promise<void>;
+
+      buildIndex: (bookId: string, chunks: RawChunk[]) => Promise<void>;
+      indexStatus: (bookId: string) => Promise<IndexStatus>;
+      onIndexProgress: (cb: (p: IndexProgress) => void) => () => void;
 
       getSettings: () => Promise<Settings>;
       setSettings: (payload: {

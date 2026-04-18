@@ -8,6 +8,40 @@ export type Book = {
   addedAt: number;
   lastOpenedAt: number | null;
   position: string | null;
+  indexedAt: number | null;
+};
+
+export type ChatScope = 'page' | 'book';
+
+export const BOOK_SCOPE_PAGE_KEY = '__book__';
+
+export function effectivePageKey(scope: ChatScope | undefined, pageKey: string): string {
+  return scope === 'book' ? BOOK_SCOPE_PAGE_KEY : pageKey;
+}
+
+export type IndexStatus = {
+  indexed: boolean;
+  indexedAt: number | null;
+  chunkCount: number;
+};
+
+export type RawChunk = {
+  sourceLabel: string;
+  text: string;
+};
+
+export type RetrievedChunk = {
+  text: string;
+  sourceLabel: string;
+  score: number;
+};
+
+export type IndexProgress = {
+  bookId: string;
+  phase: 'embedding' | 'done' | 'error';
+  embedded: number;
+  total: number;
+  message?: string;
 };
 
 export type ChatRole = 'user' | 'assistant';
@@ -46,6 +80,22 @@ export type ChatRequest = {
   pageText: string;
   userMessage: string;
   images?: ChatImage[];
+  selectedText?: string;
+  scope?: ChatScope;
+};
+
+export type Highlight = {
+  id: string;
+  bookId: string;
+  pageKey: string;
+  pageLabel: string;
+  text: string;
+  /** EPUB: CFI range. PDF: JSON with rects in viewport-unit coords. */
+  anchor: string;
+  /** For PDF: 'pdf'; for EPUB: 'epub'. Drives render strategy. */
+  kind: 'pdf' | 'epub';
+  color: string;
+  createdAt: number;
 };
 
 export type ChatChunk = {
